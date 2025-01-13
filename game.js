@@ -3,51 +3,83 @@ document.addEventListener("DOMContentLoaded", () => {
   const gameContainer = document.getElementById("game-container");
   const startButton = document.getElementById("start-button");
   const stopButton = document.getElementById("stop-button");
+  const livesIndicator = document.getElementById("lives-indicator");
 
   let isJumping = false;
-  let obstacles = [];
-  let gameInterval;
   let isGameRunning = false;
+  let lives = 9;
+  let gameObjects = [];
 
-  function createObstacle() {
-    const obstacle = document.createElement("div");
-    obstacle.classList.add("obstacle");
-    obstacle.style.left = "100%"; 
-    gameContainer.appendChild(obstacle);
-    obstacles.push(obstacle);
 
-   
-    let obstaclePosition = gameContainer.clientWidth;
+  const gameState = {
+    lives: 9,
+    maxLives: 9,
+    updateLives(change) {
+      this.lives += change;
+      if (this.lives > this.maxLives) this.lives = this.maxLives;
+      if (this.lives <= 0) {
+        this.lives = 0;
+        endGame();
+      }
+      livesIndicator.textContent = `Lives: ${this.lives}`;
+    },
+  };
+
+  // object types
+  const objectTypes = {
+    OBSTACLE: "obstacle",
+    POWER_UP: "power-up",
+  };
+
+  function createGameObject(type) {
+    const gameObject = document.createElement("div");
+    gameObject.classList.add(type);
+    gameObject.style.left = "100%";
+    gameObject.dataset.type = type;
+    gameContainer.appendChild(gameObject);
+    gameObjects.push(gameObject);
+
+    let position = gameContainer.clientWidth;
     const moveInterval = setInterval(() => {
       if (!isGameRunning) {
         clearInterval(moveInterval);
-        obstacle.remove();
+        gameObject.remove();
         return;
       }
 
-      obstaclePosition -= 5; 
-      obstacle.style.left = `${obstaclePosition}px`;
+      position -= 5;
+      gameObject.style.left = `${position}px`;
 
       const playerRect = player.getBoundingClientRect();
-      const obstacleRect = obstacle.getBoundingClientRect();
+      const objectRect = gameObject.getBoundingClientRect();
 
+      // kittie collision detection
       if (
-        playerRect.right > obstacleRect.left &&
-        playerRect.left < obstacleRect.right &&
-        playerRect.bottom > obstacleRect.top &&
-        playerRect.top < obstacleRect.bottom
+        playerRect.right > objectRect.left &&
+        playerRect.left < objectRect.right &&
+        playerRect.bottom > objectRect.top &&
+        playerRect.top < objectRect.bottom
       ) {
-        endGame();
+        handleCollision(gameObject);
         clearInterval(moveInterval);
+        gameObject.remove();
       }
 
-     
-      if (obstaclePosition < -40) {
-        obstacle.remove();
-        obstacles.shift(); 
+      if (position < -40) {
+        gameObject.remove();
+        gameObjects = gameObjects.filter((obj) => obj !== gameObject);
         clearInterval(moveInterval);
       }
     }, 20);
+  }
+
+  function handleCollision(gameObject) {
+    const type = gameObject.dataset.type;
+    if (type === objectTypes.OBSTACLE) {
+      gameState.updateLives(-1); // - kittie life
+    } else if (type === objectTypes.POWER_UP) {
+      gameState.updateLives(1); // + kittie life
+    }
   }
 
   function jump() {
@@ -55,6 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     isJumping = true;
     let jumpHeight = 0;
+
     const jumpInterval = setInterval(() => {
       if (jumpHeight >= 100) {
         clearInterval(jumpInterval);
@@ -81,11 +114,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function startGame() {
     if (isGameRunning) return;
+
     isGameRunning = true;
-    obstacles = []; 
-    gameInterval = setInterval(() => {
-      createObstacle();
-    }, 2000);
+    gameState.lives = 9; 
+    gameObjects = []; 
+    livesIndicator.textContent = `Lives: ${gameState.lives}`;
+
+    const gameLoop = setInterval(() => {
+      if (!isGameRunning) {
+        clearInterval(gameLoop);
+        return;
+      }
+      createGameObject(
+        Math.random() < 0.7 ? objectTypes.OBSTACLE : objectTypes.POWER_UP
+      );
+    }, 1500);
 
     document.addEventListener("keydown", (e) => {
       if (e.code === "Space" && isGameRunning) jump();
@@ -94,21 +137,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function endGame() {
     isGameRunning = false;
-    clearInterval(gameInterval);
-    alert("Game Over! You hit an obstacle.");
+    alert("Game Over! You ran out of lives.");
     resetGame();
   }
 
   function resetGame() {
-    obstacles.forEach((obs) => obs.remove());
-    obstacles = [];
-    player.style.bottom = "20px"; 
+    gameObjects.forEach((obj) => obj.remove());
+    gameObjects = [];
+    player.style.bottom = "20px";
   }
 
   function stopGame() {
     isGameRunning = false;
-    clearInterval(gameInterval);
-    resetGame(); 
+    resetGame();
   }
 
   startButton.addEventListener("click", () => {
